@@ -91,6 +91,14 @@ function setLocal<T>(key: string, value: T): void {
   }
 }
 
+// Helper para sanitizar UUIDs para Supabase (evita errores tipo 'invalid input syntax for type uuid')
+function toValidUuidOrNull(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(trimmed) ? trimmed : null;
+}
+
 // ============================================================================
 // SERVICIO DE CLIENTES
 // ============================================================================
@@ -328,7 +336,8 @@ export const PerfilesService = {
       email: payload.email || undefined,
     };
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('perfiles').insert(newPerfil).select().single();
+      const { id, ...perfilPayload } = newPerfil;
+      const { data, error } = await supabase.from('perfiles').insert(perfilPayload).select().single();
       if (error) throw error;
       return data;
     }
@@ -384,7 +393,11 @@ export const UbicacionesService = {
       activa: true,
     };
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('ubicaciones').insert(newUbi).select().single();
+      const { data, error } = await supabase
+        .from('ubicaciones')
+        .insert({ nombre: payload.nombre.trim(), activa: true })
+        .select()
+        .single();
       if (error) throw error;
       return data;
     }
@@ -442,7 +455,8 @@ export const CatalogoService = {
       activo: payload.activo !== undefined ? payload.activo : true,
     };
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('catalogo_servicios').insert(newSrv).select().single();
+      const { id, ...srvPayload } = newSrv;
+      const { data, error } = await supabase.from('catalogo_servicios').insert(srvPayload).select().single();
       if (error) throw error;
       return data;
     }
@@ -499,7 +513,8 @@ export const ClausulasService = {
       activa: payload.activa !== undefined ? payload.activa : true,
     };
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('plantilla_clausulas').insert(newClausula).select().single();
+      const { id, ...clausulaPayload } = newClausula;
+      const { data, error } = await supabase.from('plantilla_clausulas').insert(clausulaPayload).select().single();
       if (error) throw error;
       return data;
     }
@@ -562,8 +577,8 @@ export const HistorialService = {
       await supabase.from('orden_historial').insert({
         orden_id: ordenId,
         estado,
-        ubicacion_id: ubicacionId || null,
-        tecnico_id: tecnicoId || null,
+        ubicacion_id: toValidUuidOrNull(ubicacionId),
+        tecnico_id: toValidUuidOrNull(tecnicoId),
         nota: nota || null,
       });
       return;
@@ -664,7 +679,11 @@ export const OrdenItemsService = {
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase
         .from('orden_items')
-        .insert({ ...item, orden_id: ordenId })
+        .insert({
+          ...item,
+          orden_id: ordenId,
+          servicio_id: toValidUuidOrNull(item.servicio_id),
+        })
         .select()
         .single();
       if (error) throw error;
@@ -762,7 +781,7 @@ export const PagosService = {
           monto: payload.monto,
           metodo: payload.metodo,
           referencia: payload.referencia || null,
-          recibido_por: payload.recibido_por || null,
+          recibido_por: toValidUuidOrNull(payload.recibido_por),
           anulado: false,
           nota: payload.nota || null,
         })
@@ -901,7 +920,16 @@ export const GastosService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('gastos').insert(newGasto).select().single();
+      const { id, ...gastoPayload } = newGasto;
+      const { data, error } = await supabase
+        .from('gastos')
+        .insert({
+          ...gastoPayload,
+          orden_id: toValidUuidOrNull(payload.orden_id),
+          registrado_por: toValidUuidOrNull(payload.registrado_por),
+        })
+        .select()
+        .single();
       if (error) throw error;
       return data;
     }
@@ -1211,12 +1239,20 @@ export const OrdenesService = {
     const total = Math.max(0, subtotal - descuento + impuesto);
 
     // Pagos registrados
-    const pagosAll = getLocal<any[]>(PAGOS_KEY, [
-      { id: 'pag-001', orden_id: 'ord-002', monto: 33.71, metodo: 'yappy', fecha: new Date().toISOString(), anulado: false }
-    ]);
-    const pagado = pagosAll
-      .filter((p) => p.orden_id === orden.id && !p.anulado)
-      .reduce((acc, p) => acc + Number(p.monto), 0);
+    let pagado = 0;
+    if (isSupabaseConfigured && supabase) {
+      const pagos = await PagosService.getByOrden(orden.id);
+      pagado = pagos
+        .filter((p) => !p.anulado)
+        .reduce((acc, p) => acc + Number(p.monto), 0);
+    } else {
+      const pagosAll = getLocal<any[]>(PAGOS_KEY, [
+        { id: 'pag-001', orden_id: 'ord-002', monto: 33.71, metodo: 'yappy', fecha: new Date().toISOString(), anulado: false }
+      ]);
+      pagado = pagosAll
+        .filter((p) => p.orden_id === orden.id && !p.anulado)
+        .reduce((acc, p) => acc + Number(p.monto), 0);
+    }
 
     const saldo = Math.max(0, total - pagado);
 
@@ -1302,13 +1338,57 @@ export const OrdenesService = {
     };
 
     if (isSupabaseConfigured && supabase) {
+      // 1. Obtener correlativo dinámico de Supabase para evitar duplicados en numero
+      let supabaseNumero = numero;
+      try {
+        const { data: latest } = await supabase
+          .from('ordenes')
+          .select('numero')
+          .ilike('numero', `OT-${currentYear}-%`)
+          .order('numero', { ascending: false })
+          .limit(1);
+
+        if (latest && latest.length > 0 && latest[0]?.numero) {
+          const match = latest[0].numero.match(/OT-\d{4}-(\d+)/);
+          const lastNum = match ? parseInt(match[1], 10) : 0;
+          supabaseNumero = `OT-${currentYear}-${String(lastNum + 1).padStart(4, '0')}`;
+        } else {
+          supabaseNumero = `OT-${currentYear}-0001`;
+        }
+      } catch (err) {
+        console.warn('Error fetching latest order number from Supabase, using fallback:', err);
+      }
+
+      // 2. Insertar sin pasar 'id' (para que Postgres use gen_random_uuid())
+      //    y sanitizando las FK opcionales para evitar invalid syntax for type uuid
       const { data, error } = await supabase
         .from('ordenes')
-        .insert({ ...payload, id: newId, numero })
+        .insert({
+          ...payload,
+          equipo_id: toValidUuidOrNull(payload.equipo_id),
+          tecnico_id: toValidUuidOrNull(payload.tecnico_id),
+          ubicacion_id: toValidUuidOrNull(payload.ubicacion_id),
+          created_by: toValidUuidOrNull(payload.created_by),
+          numero: supabaseNumero,
+        })
         .select()
         .single();
       if (error) throw error;
-      return data;
+
+      // 3. Guardar fotos de ingreso si se adjuntaron
+      if (fotosIngreso && fotosIngreso.length > 0) {
+        for (const foto of fotosIngreso) {
+          await FotosService.addFoto(data.id, {
+            ruta: foto,
+            tipo: 'ingreso',
+            descripcion: 'Foto de estado físico al ingreso',
+          });
+        }
+      }
+
+      // 4. Retornar la orden completa poblada con cliente, equipo, etc.
+      const fullOrden = await this.getById(data.id);
+      return fullOrden || data;
     }
 
     list.unshift(newOrden);
@@ -1339,11 +1419,8 @@ export const OrdenesService = {
   },
 
   async update(id: string, payload: Partial<Orden>, notaHistorial?: string): Promise<Orden> {
-    const list = getLocal<Orden[]>(STORAGE_KEYS.ORDENES, MOCK_ORDENES);
-    const index = list.findIndex((o) => o.id === id);
-    if (index === -1) throw new Error('Orden no encontrada');
-
-    const current = list[index];
+    const current = await this.getById(id);
+    if (!current) throw new Error('Orden no encontrada');
 
     // REGLA DE NEGOCIO CRÍTICA DE ax_network_schema.sql (validar_aprobacion):
     // "No pasar a reparación sin presupuesto aprobado por el cliente"
@@ -1362,6 +1439,45 @@ export const OrdenesService = {
       fecha_entrega = new Date().toISOString();
     }
 
+    if (isSupabaseConfigured && supabase) {
+      const sanitizedUpdates: any = {
+        ...payload,
+        fecha_entrega,
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.equipo_id !== undefined) sanitizedUpdates.equipo_id = toValidUuidOrNull(payload.equipo_id);
+      if (payload.tecnico_id !== undefined) sanitizedUpdates.tecnico_id = toValidUuidOrNull(payload.tecnico_id);
+      if (payload.ubicacion_id !== undefined) sanitizedUpdates.ubicacion_id = toValidUuidOrNull(payload.ubicacion_id);
+
+      const { data, error } = await supabase
+        .from('ordenes')
+        .update(sanitizedUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Registrar en historial si hubo cambio de estado, ubicación o técnico
+      const cambioEstado = payload.estado && payload.estado !== current.estado;
+      const cambioUbicacion = payload.ubicacion_id && payload.ubicacion_id !== current.ubicacion_id;
+      const cambioTecnico = payload.tecnico_id && payload.tecnico_id !== current.tecnico_id;
+
+      if (cambioEstado || cambioUbicacion || cambioTecnico || notaHistorial) {
+        await HistorialService.addEntry(
+          id,
+          targetEstado,
+          payload.ubicacion_id !== undefined ? payload.ubicacion_id : current.ubicacion_id,
+          payload.tecnico_id !== undefined ? payload.tecnico_id : current.tecnico_id,
+          notaHistorial || (cambioEstado ? `Cambio de estado a "${targetEstado}"` : 'Actualización de orden')
+        );
+      }
+
+      const full = await this.getById(id);
+      return full || data;
+    }
+
+    const list = getLocal<Orden[]>(STORAGE_KEYS.ORDENES, MOCK_ORDENES);
+    const index = list.findIndex((o) => o.id === id);
     const updated: Orden = {
       ...current,
       ...payload,
@@ -1369,19 +1485,10 @@ export const OrdenesService = {
       updated_at: new Date().toISOString(),
     };
 
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase
-        .from('ordenes')
-        .update({ ...payload, fecha_entrega, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+    if (index !== -1) {
+      list[index] = updated;
+      setLocal(STORAGE_KEYS.ORDENES, list);
     }
-
-    list[index] = updated;
-    setLocal(STORAGE_KEYS.ORDENES, list);
 
     // Registrar en historial si hubo cambio de estado, ubicación o técnico
     const cambioEstado = payload.estado && payload.estado !== current.estado;
@@ -1399,7 +1506,7 @@ export const OrdenesService = {
     }
 
     const full = await this.getById(id);
-    return full!;
+    return full || updated;
   },
 
   async registrarAprobacion(
@@ -1505,9 +1612,20 @@ export const CitasService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('citas').insert(newCita).select().single();
+      const { id, ...citaPayload } = newCita;
+      const { data, error } = await supabase
+        .from('citas')
+        .insert({
+          ...citaPayload,
+          cliente_id: toValidUuidOrNull(payload.cliente_id),
+          orden_id: toValidUuidOrNull(payload.orden_id),
+          tecnico_id: toValidUuidOrNull(payload.tecnico_id),
+        })
+        .select()
+        .single();
       if (error) throw error;
-      return data;
+      const full = await this.getById(data.id);
+      return full || data;
     }
 
     const list = getLocal<Cita[]>(STORAGE_KEYS.CITAS, MOCK_CITAS);
@@ -1519,8 +1637,7 @@ export const CitasService = {
   },
 
   async update(id: string, updates: Partial<Cita>): Promise<Cita> {
-    const list = getLocal<Cita[]>(STORAGE_KEYS.CITAS, MOCK_CITAS);
-    const existing = list.find((c) => c.id === id);
+    const existing = await this.getById(id);
     if (!existing) throw new Error('Cita no encontrada');
 
     const merged = { ...existing, ...updates };
@@ -1542,9 +1659,12 @@ export const CitasService = {
       return data;
     }
 
+    const list = getLocal<Cita[]>(STORAGE_KEYS.CITAS, MOCK_CITAS);
     const idx = list.findIndex((c) => c.id === id);
-    list[idx] = merged;
-    setLocal(STORAGE_KEYS.CITAS, list);
+    if (idx !== -1) {
+      list[idx] = merged;
+      setLocal(STORAGE_KEYS.CITAS, list);
+    }
 
     const full = await this.getById(id);
     return full || merged;
@@ -1624,9 +1744,20 @@ export const TicketsService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('tickets').insert(newTicket).select().single();
+      const { id, ...ticketPayload } = newTicket;
+      const { data, error } = await supabase
+        .from('tickets')
+        .insert({
+          ...ticketPayload,
+          cliente_id: toValidUuidOrNull(payload.cliente_id) || payload.cliente_id,
+          orden_id: toValidUuidOrNull(payload.orden_id),
+          asignado_a: toValidUuidOrNull(payload.tecnico_id),
+        })
+        .select()
+        .single();
       if (error) throw error;
-      return data;
+      const full = await this.getById(data.id);
+      return full || data;
     }
 
     const list = getLocal<Ticket[]>(STORAGE_KEYS.TICKETS, MOCK_TICKETS);
@@ -1638,8 +1769,7 @@ export const TicketsService = {
   },
 
   async update(id: string, updates: Partial<Ticket>): Promise<Ticket> {
-    const list = getLocal<Ticket[]>(STORAGE_KEYS.TICKETS, MOCK_TICKETS);
-    const existing = list.find((t) => t.id === id);
+    const existing = await this.getById(id);
     if (!existing) throw new Error('Ticket no encontrado');
 
     const merged: Ticket = {
@@ -1664,9 +1794,12 @@ export const TicketsService = {
       return data;
     }
 
+    const list = getLocal<Ticket[]>(STORAGE_KEYS.TICKETS, MOCK_TICKETS);
     const idx = list.findIndex((t) => t.id === id);
-    list[idx] = merged;
-    setLocal(STORAGE_KEYS.TICKETS, list);
+    if (idx !== -1) {
+      list[idx] = merged;
+      setLocal(STORAGE_KEYS.TICKETS, list);
+    }
 
     const full = await this.getById(id);
     return full || merged;
@@ -1863,7 +1996,12 @@ export const InformesService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('informes').insert(newInforme).select().single();
+      const { id, ...informePayload } = newInforme;
+      const { data, error } = await supabase
+        .from('informes')
+        .insert(informePayload)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     }
