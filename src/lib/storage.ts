@@ -1281,7 +1281,15 @@ export const OrdenesService = {
         `)
         .order('fecha_ingreso', { ascending: false });
       if (error) throw error;
-      return data || [];
+      if (!data) return [];
+
+      const populated = await Promise.all(
+        data.map(async (ord) => ({
+          ...ord,
+          totales: await this.calculateTotales(ord),
+        }))
+      );
+      return populated;
     }
 
     const ordenes = getLocal<Orden[]>(STORAGE_KEYS.ORDENES, MOCK_ORDENES);
@@ -1313,6 +1321,26 @@ export const OrdenesService = {
   },
 
   async getById(id: string): Promise<Orden | null> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('ordenes')
+        .select(`
+          *,
+          cliente:clientes(*),
+          equipo:equipos(*),
+          tecnico:perfiles!tecnico_id(*),
+          ubicacion:ubicaciones(*)
+        `)
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      const totales = await this.calculateTotales(data);
+      return {
+        ...data,
+        totales,
+      };
+    }
     const all = await this.getAll();
     return all.find((o) => o.id === id) || null;
   },
@@ -1925,6 +1953,17 @@ export const TicketsService = {
 // ============================================================================
 // SERVICIO DE INFORMES TÉCNICOS EN PDF
 // ============================================================================
+
+// Helper para mapear informe de la BD hacia la interfaz Informe del frontend
+function mapInformeFromDb(row: any): Informe {
+  if (!row) return row;
+  return {
+    ...row,
+    firma_cliente: row.firma_cliente || row.firma_cliente_ruta || row.snapshot?.firma_cliente || null,
+    firma_tecnico: row.firma_tecnico || row.firma_tecnico_ruta || row.snapshot?.firma_tecnico || null,
+  };
+}
+
 export const InformesService = {
   async getAll(): Promise<Informe[]> {
     if (isSupabaseConfigured && supabase) {
@@ -1933,7 +1972,7 @@ export const InformesService = {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map(mapInformeFromDb);
     }
     return getLocal<Informe[]>(STORAGE_KEYS.INFORMES, []);
   },
@@ -1948,13 +1987,22 @@ export const InformesService = {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ? mapInformeFromDb(data) : null;
     }
     const all = getLocal<Informe[]>(STORAGE_KEYS.INFORMES, []);
     return all.find((inf) => inf.orden_id === ordenId) || null;
   },
 
   async getById(id: string): Promise<Informe | null> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('informes')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapInformeFromDb(data) : null;
+    }
     const all = await this.getAll();
     return all.find((inf) => inf.id === id) || null;
   },
@@ -1987,8 +2035,8 @@ export const InformesService = {
       snapshot: payload.snapshot,
       firma_tecnico: payload.firma_tecnico || null,
       firma_cliente: payload.firma_cliente || null,
-      firma_tecnico_ruta: null,
-      firma_cliente_ruta: null,
+      firma_tecnico_ruta: payload.firma_tecnico || null,
+      firma_cliente_ruta: payload.firma_cliente || null,
       firmado_en: payload.firmado_en || new Date().toISOString(),
       pdf_ruta: null,
       emitido_por: null,
@@ -1996,14 +2044,53 @@ export const InformesService = {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const { id, ...informePayload } = newInforme;
+      let supabaseNumero = numero;
+      try {
+        const { data: latest } = await supabase
+          .from('informes')
+          .select('numero')
+          .ilike('numero', `INF-${currentYear}-%`)
+          .order('numero', { ascending: false })
+          .limit(1);
+
+        if (latest && latest.length > 0 && latest[0]?.numero) {
+          const match = latest[0].numero.match(/INF-\d{4}-(\d+)/);
+          const lastNum = match ? parseInt(match[1], 10) : 0;
+          supabaseNumero = `INF-${currentYear}-${String(lastNum + 1).padStart(4, '0')}`;
+        } else {
+          supabaseNumero = `INF-${currentYear}-0001`;
+        }
+      } catch (err) {
+        console.warn('Error fetching latest informe number from Supabase:', err);
+      }
+
+      // La tabla informes en Supabase usa firma_cliente_ruta y firma_tecnico_ruta,
+      // no firma_cliente ni firma_tecnico. Guardamos la firma en la columna ruta y en snapshot.
+      const dbPayload = {
+        numero: supabaseNumero,
+        orden_id: payload.orden_id,
+        garantia_dias: Number(payload.garantia_dias) || 0,
+        garantia_cubre: payload.garantia_cubre || null,
+        garantia_excluye: payload.garantia_excluye || null,
+        clausulas: payload.clausulas || [],
+        snapshot: {
+          ...(payload.snapshot || {}),
+          firma_cliente: payload.firma_cliente || null,
+          firma_tecnico: payload.firma_tecnico || null,
+        },
+        firma_cliente_ruta: payload.firma_cliente || null,
+        firma_tecnico_ruta: payload.firma_tecnico || null,
+        firmado_en: payload.firmado_en || new Date().toISOString(),
+        pdf_ruta: null,
+      };
+
       const { data, error } = await supabase
         .from('informes')
-        .insert(informePayload)
+        .insert(dbPayload)
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return mapInformeFromDb(data);
     }
 
     list.unshift(newInforme);
@@ -2022,17 +2109,26 @@ export const InformesService = {
   },
 
   async update(id: string, updates: Partial<Informe>): Promise<Informe> {
+    if (isSupabaseConfigured && supabase) {
+      const sanitizedUpdates: any = { ...updates };
+      if ('firma_cliente' in sanitizedUpdates) {
+        sanitizedUpdates.firma_cliente_ruta = sanitizedUpdates.firma_cliente;
+        delete sanitizedUpdates.firma_cliente;
+      }
+      if ('firma_tecnico' in sanitizedUpdates) {
+        sanitizedUpdates.firma_tecnico_ruta = sanitizedUpdates.firma_tecnico;
+        delete sanitizedUpdates.firma_tecnico;
+      }
+      const { data, error } = await supabase.from('informes').update(sanitizedUpdates).eq('id', id).select().single();
+      if (error) throw error;
+      return mapInformeFromDb(data);
+    }
+
     const list = getLocal<Informe[]>(STORAGE_KEYS.INFORMES, []);
     const index = list.findIndex((i) => i.id === id);
     if (index === -1) throw new Error('Informe no encontrado');
 
     const merged = { ...list[index], ...updates };
-
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('informes').update(updates).eq('id', id).select().single();
-      if (error) throw error;
-      return data;
-    }
 
     list[index] = merged;
     setLocal(STORAGE_KEYS.INFORMES, list);
