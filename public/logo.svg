@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="axGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#axGrad)"/>
+  <path d="M26 86L50 34H62L38 86H26Z" fill="white"/>
+  <path d="M46 56L68 56L60 74L38 74Z" fill="white" fill-opacity="0.9"/>
+  <path d="M60 86L78 58L66 40L80 40L96 66L84 86H60Z" fill="url(#glowGrad)"/>
+  <path d="M84 40L96 40L72 86H60L84 40Z" fill="white"/>
+</svg>

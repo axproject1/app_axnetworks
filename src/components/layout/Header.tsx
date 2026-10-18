@@ -24,7 +24,7 @@ export function Header({ onOpenSearch }: HeaderProps) {
         <div className="flex items-center gap-3">
           <div className="flex md:hidden items-center gap-2">
             <img
-              src="https://axnetworksolutions.vercel.app/img/logo-fondo.webp"
+              src="/logo.svg"
               alt="AX Network"
               className="w-8 h-8 rounded-lg shadow-sm"
             />

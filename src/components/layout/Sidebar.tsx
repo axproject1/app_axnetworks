@@ -91,7 +91,7 @@ export function Sidebar() {
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-800/80 gap-3">
         <img
-          src="https://axnetworksolutions.vercel.app/img/logo-fondo.webp"
+          src="/logo.svg"
           alt="AX Network Logo"
           className="w-9 h-9 rounded-xl shadow-sm object-cover"
         />

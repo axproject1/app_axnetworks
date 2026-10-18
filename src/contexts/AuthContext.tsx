@@ -35,29 +35,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Si Supabase está configurado con claves reales
       if (isSupabaseConfigured && supabase) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session }, error: sErr } = await supabase.auth.getSession();
+          if (sErr) throw sErr;
           if (session?.user) {
-            const { data: perfil, error } = await supabase
+            let { data: perfil, error } = await supabase
               .from('perfiles')
               .select('*')
               .eq('id', session.user.id)
-              .single();
+              .maybeSingle();
 
-            if (!error && perfil) {
+            if (!perfil) {
+              const isOwner = session.user.email?.toLowerCase() === 'axmoran1@gmail.com';
+              const { data: newP } = await supabase
+                .from('perfiles')
+                .upsert({
+                  id: session.user.id,
+                  nombre: isOwner ? 'Alex Morán (Dueño)' : (session.user.email?.split('@')[0] || 'Personal AX'),
+                  rol: isOwner ? 'dueno' : 'tecnico',
+                  activo: true,
+                })
+                .select('*')
+                .single();
+              perfil = newP;
+            }
+
+            if (perfil) {
               setUser({ ...perfil, email: session.user.email });
               setIsLoading(false);
               return;
             }
           }
+
+          // Sin sesión activa en Supabase -> No autenticado
+          setUser(null);
+          setIsLoading(false);
+          return;
         } catch (e) {
-          console.warn('Supabase auth session check failed, falling back to local demo:', e);
+          console.warn('Verificación de sesión de Supabase:', e);
+          setUser(null);
+          setIsLoading(false);
+          return;
         }
       }
 
-      // Modo local / demo
+      // Modo local solo si NO hay Supabase configurado
       try {
         const savedId = localStorage.getItem(CURRENT_USER_KEY);
-        const initial = MOCK_PERFILES.find((p) => p.id === savedId) || MOCK_PERFILES[0]; // Por defecto Alex Morán (dueño)
+        const initial = MOCK_PERFILES.find((p) => p.id === savedId) || MOCK_PERFILES[0];
         setUser(initial);
       } catch (err) {
         setUser(MOCK_PERFILES[0]);
@@ -73,16 +97,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const client = supabase;
       const { data: listener } = client.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
-          const { data: perfil } = await client
+          let { data: perfil } = await client
             .from('perfiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
+          if (!perfil) {
+            const isOwner = session.user.email?.toLowerCase() === 'axmoran1@gmail.com';
+            const { data: newP } = await client
+              .from('perfiles')
+              .upsert({
+                id: session.user.id,
+                nombre: isOwner ? 'Alex Morán (Dueño)' : (session.user.email?.split('@')[0] || 'Personal AX'),
+                rol: isOwner ? 'dueno' : 'tecnico',
+                activo: true,
+              })
+              .select('*')
+              .single();
+            perfil = newP;
+          }
           if (perfil) {
             setUser({ ...perfil, email: session.user.email });
           }
         } else {
-          // Si cerró sesión en Supabase
           setUser(null);
         }
       });
@@ -96,22 +133,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password?: string) => {
     setIsLoading(true);
     try {
-      if (isSupabaseConfigured && supabase && password) {
+      if (isSupabaseConfigured && supabase) {
+        if (!password) {
+          throw new Error('Por favor ingresa tu contraseña de acceso.');
+        }
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          throw new Error(
+            error.message === 'Invalid login credentials'
+              ? 'Correo o contraseña incorrectos. Verifica tus credenciales.'
+              : error.message
+          );
+        }
         if (data.user) {
-          const { data: perfil, error: pErr } = await supabase
+          let { data: perfil, error: pErr } = await supabase
             .from('perfiles')
             .select('*')
             .eq('id', data.user.id)
-            .single();
-          if (pErr) throw pErr;
+            .maybeSingle();
+
+          if (!perfil) {
+            const isOwner = data.user.email?.toLowerCase() === 'axmoran1@gmail.com';
+            const { data: newP } = await supabase
+              .from('perfiles')
+              .upsert({
+                id: data.user.id,
+                nombre: isOwner ? 'Alex Morán (Dueño)' : (data.user.email?.split('@')[0] || 'Personal AX'),
+                rol: isOwner ? 'dueno' : 'tecnico',
+                activo: true,
+              })
+              .select('*')
+              .single();
+            perfil = newP;
+          }
+
+          if (pErr && !perfil) throw pErr;
           setUser({ ...perfil, email: data.user.email });
           return;
         }
+        return;
       }
 
-      // Mock login
+      // Modo local solo si NO está conectado a Supabase
       const matched = MOCK_PERFILES.find(
         (p) => p.email?.toLowerCase() === email.toLowerCase() || p.nombre.toLowerCase().includes(email.toLowerCase())
       );
@@ -119,7 +182,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(matched);
         localStorage.setItem(CURRENT_USER_KEY, matched.id);
       } else {
-        // Asignar primer perfil por defecto
         setUser(MOCK_PERFILES[0]);
         localStorage.setItem(CURRENT_USER_KEY, MOCK_PERFILES[0].id);
       }

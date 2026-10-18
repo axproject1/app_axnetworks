@@ -56,7 +56,7 @@ export function LoginPage() {
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center p-3 bg-white dark:bg-darkBg-card rounded-2xl shadow-elevated border border-slate-200/60 dark:border-slate-800 mb-2">
             <img
-              src="https://axnetworksolutions.vercel.app/img/logo-fondo.webp"
+              src="/logo.svg"
               alt="AX Network"
               className="w-12 h-12 rounded-xl object-cover"
             />
