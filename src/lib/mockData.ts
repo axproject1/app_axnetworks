@@ -8,7 +8,7 @@ export const MOCK_PERFILES: Perfil[] = [
     rol: 'dueno',
     activo: true,
     created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
-    email: 'alex@axnetwork.com',
+    email: 'axmoran1@gmail.com',
   },
   {
     id: 'usr-tec-001',
