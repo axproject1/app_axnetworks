@@ -3,6 +3,7 @@ import { Informe } from '@/types/database';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 import jsPDF from 'jspdf';
 import { 
   Printer, 
@@ -34,6 +35,7 @@ export const InformeViewerModal: React.FC<InformeViewerModalProps> = ({
   onRefirmar,
 }) => {
   const { isTecnico } = useAuth();
+  const { config: empresa } = useEmpresa();
   const printRef = useRef<HTMLDivElement>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -74,15 +76,21 @@ export const InformeViewerModal: React.FC<InformeViewerModalProps> = ({
       doc.rect(marginX, y, 4, 18, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
+      doc.setFontSize(15);
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-      doc.text('AX NETWORK SOLUTIONS GROUP', marginX + 8, y + 6);
+      doc.text(empresa.nombre, marginX + 8, y + 6);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-      doc.text('Soporte Técnico Especializado · Redes y Computadoras · Ciudad de Panamá', marginX + 8, y + 11);
-      doc.text('RUC: 155702314-2-2023 DV 45 · Tel / WhatsApp: +507 6911-0901', marginX + 8, y + 16);
+      const subLine1 = `${empresa.subtitulo}${empresa.direccion ? ` · ${empresa.direccion}` : ''}`;
+      doc.text(subLine1, marginX + 8, y + 11);
+      const subLine2 = [
+        empresa.ruc ? `RUC: ${empresa.ruc}` : '',
+        empresa.telefono || empresa.whatsapp ? `Tel / WA: ${empresa.whatsapp || empresa.telefono}` : '',
+        empresa.email ? empresa.email : '',
+      ].filter(Boolean).join(' · ');
+      doc.text(subLine2, marginX + 8, y + 16);
 
       // Bloque del Número de Informe
       doc.setFillColor(241, 245, 249);
@@ -226,7 +234,7 @@ export const InformeViewerModal: React.FC<InformeViewerModalProps> = ({
       doc.text(`Téc: ${tecnico?.nombre || 'Técnico Responsable'}`, marginX + 4, signatureY + 21);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.5);
-      doc.text('Firma del Técnico Especialista AX Network', marginX + 4, signatureY + 24.5);
+      doc.text(`Firma del Técnico Especialista · ${empresa.nombre}`, marginX + 4, signatureY + 24.5);
 
       // Cuadro Cliente
       doc.roundedRect(110, signatureY, signatureBoxW, signatureBoxH, 1.5, 1.5, 'D');
@@ -248,7 +256,7 @@ export const InformeViewerModal: React.FC<InformeViewerModalProps> = ({
       doc.setFontSize(6.5);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
       doc.text(
-        `Emitido el ${new Date(informe.created_at).toLocaleString('es-PA')} · AX Network Solutions Group · Sistema de Control Interno`,
+        `Emitido el ${new Date(informe.created_at).toLocaleString('es-PA')} · ${empresa.nombre} · Sistema de Control Interno`,
         marginX,
         287
       );
@@ -264,7 +272,7 @@ export const InformeViewerModal: React.FC<InformeViewerModalProps> = ({
 
   const handleSendWhatsApp = () => {
     const equipNom = equipo ? `${equipo.tipo} ${equipo.marca} ${equipo.modelo}` : 'equipo';
-    const msg = `Hola ${cliente?.nombre || 'estimado(a)'}, le saludamos de *AX Network Solutions Group*.
+    const msg = `Hola ${cliente?.nombre || 'estimado(a)'}, le saludamos de *${empresa.nombre}*.
 
 Le informamos que el *Informe Técnico N.º ${informe.numero}* correspondiente a su ${equipNom} ha sido emitido formalmente con su correspondiente garantía de *${informe.garantia_dias} días*.
 
@@ -343,13 +351,17 @@ Le informamos que el *Informe Técnico N.º ${informe.numero}* correspondiente a
               <div className="w-1.5 h-14 bg-axBlue rounded-full" />
               <div>
                 <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-                  AX NETWORK SOLUTIONS GROUP
+                  {empresa.nombre}
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Soporte Técnico Especializado · Redes y Computadoras · Panamá
+                  {empresa.subtitulo}{empresa.direccion ? ` · ${empresa.direccion}` : ''}
                 </p>
                 <p className="text-[10px] text-slate-400">
-                  RUC: 155702314-2-2023 DV 45 · Tel: +507 6911-0901 · soporte@axnetwork.com
+                  {[
+                    empresa.ruc ? `RUC: ${empresa.ruc}` : '',
+                    empresa.telefono || empresa.whatsapp ? `Tel: ${empresa.whatsapp || empresa.telefono}` : '',
+                    empresa.email ? empresa.email : '',
+                  ].filter(Boolean).join(' · ')}
                 </p>
               </div>
             </div>
@@ -522,7 +534,7 @@ Le informamos que el *Informe Técnico N.º ${informe.numero}* correspondiente a
               </div>
               <div className="border-t border-slate-300 pt-1 text-center">
                 <p className="font-bold text-[10px] text-slate-800">{tecnico?.nombre || 'Técnico Responsable'}</p>
-                <p className="text-[9px] text-slate-400">Técnico Especialista · AX Network</p>
+                <p className="text-[9px] text-slate-400">Técnico Especialista · {empresa.nombre}</p>
               </div>
             </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { EmpresaProvider } from '@/contexts/EmpresaContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { ClientesPage } from '@/features/clientes/ClientesPage';
@@ -40,8 +41,9 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
 export function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
+      <EmpresaProvider>
+        <AuthProvider>
+          <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -84,7 +86,8 @@ export function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
-    </ThemeProvider>
+    </EmpresaProvider>
+  </ThemeProvider>
   );
 }
 

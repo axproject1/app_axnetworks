@@ -1,4 +1,4 @@
-import { Cliente, Equipo, Perfil, Orden, Ubicacion, CatalogoServicio, PlantillaClausula, Cita, Ticket, Informe, Gasto, Pago } from '@/types/database';
+import { Cliente, Equipo, Perfil, Orden, Ubicacion, CatalogoServicio, PlantillaClausula, Cita, Ticket, Informe, Gasto, Pago, EmpresaConfig } from '@/types/database';
 import { 
   MOCK_CLIENTES, 
   MOCK_EQUIPOS, 
@@ -28,6 +28,7 @@ const STORAGE_KEYS = {
   INFORMES: 'ax_informes_v1',
   PAGOS: 'ax_pagos_v1',
   GASTOS: 'ax_gastos_v1',
+  EMPRESA: 'ax_empresa_config_v1',
 };
 
 // Inicialización de Mock en localStorage si no existe
@@ -2144,5 +2145,44 @@ export const InformesService = {
     const list = getLocal<Informe[]>(STORAGE_KEYS.INFORMES, []);
     setLocal(STORAGE_KEYS.INFORMES, list.filter((i) => i.id !== id));
   }
+};
+
+// ============================================================================
+// SERVICIO DE CONFIGURACIÓN DE LA EMPRESA
+// ============================================================================
+export const DEFAULT_EMPRESA_CONFIG: EmpresaConfig = {
+  nombre: 'AX NETWORK SOLUTIONS GROUP',
+  subtitulo: 'Soporte Técnico Especializado · Redes y Computadoras',
+  ruc: '155702314-2-2023 DV 45',
+  telefono: '+507 6911-0901',
+  whatsapp: '+507 6911-0901',
+  email: 'soporte@axnetwork.com',
+  sitio_web: 'https://axnetworksolutions.vercel.app',
+  direccion: 'Ciudad de Panamá, Panamá',
+};
+
+export const EmpresaService = {
+  get(): EmpresaConfig {
+    if (typeof window === 'undefined') return DEFAULT_EMPRESA_CONFIG;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.EMPRESA);
+      if (stored) {
+        return { ...DEFAULT_EMPRESA_CONFIG, ...JSON.parse(stored) };
+      }
+    } catch (e) {
+      console.error('Error reading empresa config:', e);
+    }
+    return DEFAULT_EMPRESA_CONFIG;
+  },
+
+  save(config: EmpresaConfig): EmpresaConfig {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EMPRESA, JSON.stringify(config));
+      window.dispatchEvent(new CustomEvent('empresa-config-changed', { detail: config }));
+    } catch (e) {
+      console.error('Error saving empresa config:', e);
+    }
+    return config;
+  },
 };
 

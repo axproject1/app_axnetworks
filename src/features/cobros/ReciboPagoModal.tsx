@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDate, formatDateTime, formatPanamaPhone } from '@/lib/formatters';
 import { Printer, Download, CheckCircle2, ShieldCheck } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface ReciboPagoModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function ReciboPagoModal({
   totalOrden,
   saldoRestante,
 }: ReciboPagoModalProps) {
+  const { config: empresa } = useEmpresa();
   if (!pago) return null;
 
   const handlePrint = () => {
@@ -46,12 +48,16 @@ export function ReciboPagoModal({
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text('AX NETWORK SOLUTIONS GROUP', 10, 11);
+    doc.text(empresa.nombre, 10, 11);
 
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
-    doc.text('Comprobante Oficial de Abono / Pago · Ciudad de Panamá', 10, 17);
-    doc.text('+507 6911-0901 · https://axnetworksolutions.vercel.app', 10, 21);
+    const subTitle = `Comprobante Oficial de Abono / Pago${empresa.direccion ? ` · ${empresa.direccion}` : ''}`;
+    doc.text(subTitle, 10, 17);
+    const contactLine = [empresa.telefono || empresa.whatsapp, empresa.sitio_web].filter(Boolean).join(' · ');
+    if (contactLine) {
+      doc.text(contactLine, 10, 21);
+    }
 
     // Número de recibo y fecha
     doc.setTextColor(15, 23, 42);
@@ -112,7 +118,7 @@ export function ReciboPagoModal({
     // Pie de página
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
-    doc.text('Este documento certifica el abono recibido por AX Network Solutions Group.', 74, 175, { align: 'center' });
+    doc.text(`Este documento certifica el abono recibido por ${empresa.nombre}.`, 74, 175, { align: 'center' });
     doc.text('Gracias por su preferencia.', 74, 180, { align: 'center' });
 
     doc.save(`Recibo_Pago_${ordenNumero}_${pago.id}.pdf`);
@@ -132,7 +138,7 @@ export function ReciboPagoModal({
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
             <div>
               <p className="font-extrabold text-sm text-slate-900 dark:text-white">
-                AX NETWORK SOLUTIONS GROUP
+                {empresa.nombre}
               </p>
               <p className="text-[11px] text-slate-400">Recibo de Caja Oficial</p>
             </div>

@@ -327,3 +327,17 @@ export interface VAgendaSemana {
   direccion: string | null;
   enlace_remoto: string | null;
 }
+
+// ---------------------------------------------------------------------
+// CONFIGURACIÓN DE LA EMPRESA
+// ---------------------------------------------------------------------
+export interface EmpresaConfig {
+  nombre: string;
+  subtitulo: string;
+  ruc: string;
+  telefono: string;
+  whatsapp: string;
+  email: string;
+  sitio_web: string;
+  direccion: string;
+}

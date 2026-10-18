@@ -27,6 +27,8 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Building2,
+  Globe,
 } from 'lucide-react';
 import {
   CatalogoService,
@@ -34,18 +36,21 @@ import {
   UbicacionesService,
   PerfilesService,
 } from '@/lib/storage';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 import type {
   CatalogoServicio,
   PlantillaClausula,
   Ubicacion,
   Perfil,
   RolUsuario,
+  EmpresaConfig,
 } from '@/types/database';
 import { formatCurrency, ROL_CONFIG } from '@/lib/formatters';
 
-type ConfigTab = 'servicios' | 'clausulas' | 'ubicaciones' | 'usuarios';
+type ConfigTab = 'empresa' | 'servicios' | 'clausulas' | 'ubicaciones' | 'usuarios';
 
 const TABS: { key: ConfigTab; label: string; icon: React.ElementType; description: string }[] = [
+  { key: 'empresa', label: 'Datos de la Empresa', icon: Building2, description: 'RUC, contacto, dirección y web' },
   { key: 'servicios', label: 'Catálogo de Servicios', icon: Package, description: 'Servicios y precios base' },
   { key: 'clausulas', label: 'Cláusulas Legales', icon: FileText, description: 'Plantillas de informes' },
   { key: 'ubicaciones', label: 'Ubicaciones Físicas', icon: MapPin, description: 'Ubicaciones del taller' },
@@ -56,7 +61,7 @@ const TABS: { key: ConfigTab; label: string; icon: React.ElementType; descriptio
 // MAIN CONFIGURATION PAGE
 // ============================================================================
 export function ConfiguracionPage() {
-  const [activeTab, setActiveTab] = useState<ConfigTab>('servicios');
+  const [activeTab, setActiveTab] = useState<ConfigTab>('empresa');
 
   return (
     <div className="min-h-full">
@@ -71,7 +76,7 @@ export function ConfiguracionPage() {
               Configuración del Sistema
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Gestiona los parámetros operativos de AX Network Solutions
+              Gestiona los parámetros operativos de la empresa y taller
             </p>
           </div>
         </div>
@@ -102,10 +107,254 @@ export function ConfiguracionPage() {
 
       {/* Tab Content */}
       <div className="animate-in fade-in duration-200">
+        {activeTab === 'empresa' && <EmpresaTab />}
         {activeTab === 'servicios' && <ServiciosTab />}
         {activeTab === 'clausulas' && <ClausulasTab />}
         {activeTab === 'ubicaciones' && <UbicacionesTab />}
         {activeTab === 'usuarios' && <UsuariosTab />}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// EMPRESA TAB
+// ============================================================================
+function EmpresaTab() {
+  const { empresa, updateEmpresa, resetEmpresa } = useEmpresa();
+  const [formData, setFormData] = useState<EmpresaConfig>(empresa);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    setFormData(empresa);
+  }, [empresa]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateEmpresa(formData);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 4000);
+  };
+
+  const handleReset = () => {
+    if (window.confirm('¿Deseas restablecer los datos de la empresa a los valores iniciales predeterminados?')) {
+      resetEmpresa();
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 4000);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {savedSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>Información de la empresa guardada exitosamente. Se aplicará de inmediato en Hojas de Ingreso, Informes Técnicos, Comprobantes de Pago y Etiquetas.</span>
+          </div>
+          <button onClick={() => setSavedSuccess(false)} className="text-slate-400 hover:text-slate-600">×</button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Formulario de Configuración */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white dark:bg-darkBg-card rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-soft">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-6">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                  Identidad y Datos Comerciales
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Esta información se imprime en todas las hojas de servicio, comprobantes y reportes
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre Comercial / Razón Social *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="Ej. AX NETWORK SOLUTIONS GROUP"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Eslogan / Subtítulo Comercial
+                </label>
+                <input
+                  type="text"
+                  value={formData.subtitulo}
+                  onChange={(e) => setFormData({ ...formData, subtitulo: e.target.value })}
+                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="Ej. Soporte Técnico Especializado · Redes y Computadoras"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    RUC / Identificación Fiscal
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.ruc}
+                    onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
+                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej. 155702314-2-2023 DV 45"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    WhatsApp de Atención / Clientes
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.whatsapp}
+                    onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej. +507 6911-0901"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Teléfono Fijo / Central
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej. +507 6911-0901"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Correo Electrónico Oficial
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej. contacto@axnetwork.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Sitio Web o Portal en Línea
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.sitio_web}
+                    onChange={(e) => setFormData({ ...formData, sitio_web: e.target.value })}
+                    className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="Ej. https://axnetworksolutions.vercel.app"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Dirección Física / Ubicación del Taller
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.direccion}
+                  onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 px-3.5 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                  placeholder="Ej. Ciudad de Panamá, Panamá"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  Restablecer predeterminados
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/25 transition-all"
+                >
+                  <Save className="w-4 h-4" />
+                  Guardar Configuración
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Vista Previa en Vivo */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <Eye className="w-3.5 h-3.5 text-brand-500" />
+              Vista Previa en Documentos
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Así se verá el encabezado de tus Hojas de Ingreso, Informes y Comprobantes de Pago:
+            </p>
+
+            {/* Simulación Hoja Impresa */}
+            <div className="bg-white dark:bg-slate-950 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-start gap-3">
+                <div className="w-2 h-12 bg-brand-500 rounded-full shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <h5 className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                    {formData.nombre || 'NOMBRE DE TU EMPRESA'}
+                  </h5>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    {formData.subtitulo || 'Soporte Técnico Especializado'} · {formData.direccion || 'Panamá'}
+                  </p>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 truncate mt-0.5 font-mono">
+                    {formData.ruc ? `RUC: ${formData.ruc} · ` : ''}WA: {formData.whatsapp || '+507 0000-0000'} {formData.email ? `· ${formData.email}` : ''}
+                  </p>
+                  {formData.sitio_web && (
+                    <p className="text-[9px] text-brand-600 dark:text-brand-400 truncate mt-0.5">
+                      {formData.sitio_web}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-400 flex justify-between items-center px-1">
+                <span>Ejemplo de Orden: OT-2026-0001</span>
+                <span>Panamá</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-brand-50/50 dark:bg-brand-950/20 rounded-xl border border-brand-100 dark:border-brand-900/30 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+              <p className="font-semibold text-brand-700 dark:text-brand-300">
+                ✓ Cambios automáticos:
+              </p>
+              <ul className="list-disc list-inside space-y-0.5 text-[10px]">
+                <li>Los PDFs generados mostrarán estos datos actualizados.</li>
+                <li>Los comprobantes de caja y recibos incluirán tu RUC y contacto.</li>
+                <li>Las etiquetas adhesivas incluirán tu sitio web.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

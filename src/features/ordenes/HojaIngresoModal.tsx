@@ -6,6 +6,7 @@ import { generateQRCode } from '@/lib/imageUtils';
 import { formatDate, formatDateTime, formatPanamaPhone } from '@/lib/formatters';
 import { Printer, Download, QrCode, CheckCircle2 } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface HojaIngresoModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface HojaIngresoModalProps {
 }
 
 export function HojaIngresoModal({ isOpen, onClose, orden }: HojaIngresoModalProps) {
+  const { config: empresa } = useEmpresa();
   const [qrDataUrl, setQrDataUrl] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -43,14 +45,17 @@ export function HojaIngresoModal({ isOpen, onClose, orden }: HojaIngresoModalPro
     doc.rect(0, 0, 210, 28, 'F');
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('AX NETWORK SOLUTIONS GROUP', 14, 12);
+    doc.text(empresa.nombre, 14, 12);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Soporte Técnico Especializado · Panamá · WhatsApp: +507 6911-0901', 14, 18);
-    doc.text('https://axnetworksolutions.vercel.app', 14, 23);
+    const subText = `${empresa.subtitulo}${empresa.whatsapp || empresa.telefono ? ` · WhatsApp: ${empresa.whatsapp || empresa.telefono}` : ''}`;
+    doc.text(subText, 14, 18);
+    if (empresa.sitio_web) {
+      doc.text(empresa.sitio_web, 14, 23);
+    }
 
     // Número de orden a la derecha
     doc.setFontSize(14);
@@ -136,7 +141,7 @@ export function HojaIngresoModal({ isOpen, onClose, orden }: HojaIngresoModalPro
     doc.setFontSize(7);
     doc.setTextColor(71, 85, 105);
     doc.text('CONDICIONES GENERALES DE INGRESO:', 14, clausulasY);
-    doc.text('1. El cliente es responsable del respaldo de su información. AX Network no se responsabiliza por pérdida de datos.', 14, clausulasY + 4);
+    doc.text(`1. El cliente es responsable del respaldo de su información. ${empresa.nombre} no se responsabiliza por pérdida de datos.`, 14, clausulasY + 4);
     doc.text('2. Todo trabajo adicional requerirá autorización previa del cliente.', 14, clausulasY + 8);
     doc.text('3. Pasados los 30 días de notificación de retiro, el taller podrá aplicar cobro por almacenamiento.', 14, clausulasY + 12);
 
@@ -148,7 +153,7 @@ export function HojaIngresoModal({ isOpen, onClose, orden }: HojaIngresoModalPro
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
     doc.text('Firma del Cliente', 52, clausulasY + 41, { align: 'center' });
-    doc.text('Firma / Sello AX Network', 157, clausulasY + 41, { align: 'center' });
+    doc.text(`Firma / Sello ${empresa.nombre}`, 157, clausulasY + 41, { align: 'center' });
 
     doc.save(`Hoja_Ingreso_${orden.numero}.pdf`);
   };
@@ -172,15 +177,15 @@ export function HojaIngresoModal({ isOpen, onClose, orden }: HojaIngresoModalPro
             <div className="flex items-center gap-3">
               <img
                 src="/logo.svg"
-                alt="AX Network"
+                alt={empresa.nombre}
                 className="w-10 h-10 rounded-xl"
               />
               <div>
                 <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                  AX NETWORK SOLUTIONS GROUP
+                  {empresa.nombre}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Soporte Técnico Especializado · Panamá · WA: +507 6911-0901
+                  {empresa.subtitulo} {empresa.whatsapp || empresa.telefono ? `· WA: ${empresa.whatsapp || empresa.telefono}` : ''}
                 </p>
               </div>
             </div>

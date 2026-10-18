@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -17,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 export function Sidebar() {
   const { isDueno, isRecepcion, isTecnico, canViewFinances } = useAuth();
+  const { config: empresa } = useEmpresa();
   const { theme } = useTheme();
 
   const navItems = [
@@ -138,9 +140,9 @@ export function Sidebar() {
           <div className="p-2 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-lg">
             <Headphones className="w-4 h-4" />
           </div>
-          <div className="text-left">
-            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Soporte Técnico AX</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-400">+507 6911-0901</p>
+          <div className="text-left overflow-hidden">
+            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">{empresa.nombre}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-400 truncate">{empresa.whatsapp || empresa.telefono || 'Panamá'}</p>
           </div>
         </div>
       </div>

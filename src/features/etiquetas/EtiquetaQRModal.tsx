@@ -6,6 +6,7 @@ import { generateQRCode } from '@/lib/imageUtils';
 import { formatDate } from '@/lib/formatters';
 import { Printer, Download, QrCode, Tag, Sparkles, Check, Copy } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { useEmpresa } from '@/contexts/EmpresaContext';
 
 interface EtiquetaQRModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface EtiquetaQRModalProps {
 }
 
 export function EtiquetaQRModal({ isOpen, onClose, orden }: EtiquetaQRModalProps) {
+  const { config: empresa } = useEmpresa();
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [tamano, setTamano] = useState<'50x30' | '60x40'>('60x40');
   const [copied, setCopied] = useState(false);
@@ -142,8 +144,8 @@ export function EtiquetaQRModal({ isOpen, onClose, orden }: EtiquetaQRModalProps
               </div>
             </div>
             <div class="footer-bar">
-              <span>Soporte Técnico Panamá</span>
-              <span>axnetworksolutions.vercel.app</span>
+              <span>${empresa.nombre}</span>
+              <span>${empresa.sitio_web ? empresa.sitio_web.replace(/^https?:\/\//, '') : (empresa.telefono || 'Soporte')}</span>
             </div>
           </div>
           <script>
@@ -227,8 +229,9 @@ export function EtiquetaQRModal({ isOpen, onClose, orden }: EtiquetaQRModalProps
     doc.line(2, height - 3.5, width - 2, height - 3.5);
     doc.setFontSize(4.5);
     doc.setTextColor(80, 80, 80);
-    doc.text('Soporte Técnico Panamá', 2, height - 1.5);
-    doc.text('axnetworksolutions.vercel.app', width - 2, height - 1.5, { align: 'right' });
+    doc.text(empresa.nombre, 2, height - 1.5);
+    const domainText = empresa.sitio_web ? empresa.sitio_web.replace(/^https?:\/\//, '') : (empresa.telefono || 'Soporte');
+    doc.text(domainText, width - 2, height - 1.5, { align: 'right' });
 
     doc.save(`Etiqueta_${orden.numero}.pdf`);
   };
@@ -339,9 +342,9 @@ export function EtiquetaQRModal({ isOpen, onClose, orden }: EtiquetaQRModalProps
             </div>
 
             {/* Pie de Etiqueta */}
-            <div className="pt-1 border-t border-slate-300 flex items-center justify-between text-[9px] text-slate-500 font-semibold">
-              <span>Soporte Técnico Panamá</span>
-              <span>axnetworksolutions.vercel.app</span>
+            <div className="pt-1 border-t border-slate-300 flex items-center justify-between text-[9px] text-slate-500 font-semibold gap-2">
+              <span className="truncate max-w-[140px]">{empresa.nombre}</span>
+              <span className="truncate max-w-[140px]">{empresa.sitio_web ? empresa.sitio_web.replace(/^https?:\/\//, '') : (empresa.telefono || 'Soporte')}</span>
             </div>
           </div>
         </div>
